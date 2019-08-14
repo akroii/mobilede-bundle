@@ -17,20 +17,31 @@
 namespace Pdir\MobileDeBundle\Dca;
 
 use Contao\Backend;
+use Contao\CoreBundle\Framework\ContaoFramework;
 use Contao\DataContainer;
 use Contao\Exception;
 use Contao\Image;
 use Contao\Input;
 use Contao\StringUtil;
 use Contao\System;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class Ad
 {
     private $Database;
 
-    public function __construct()
+    private $aliasKeys;
+
+    /**
+     * @var ContainerInterface
+     */
+    protected $container;
+
+    public function __construct(ContainerInterface $container)
     {
+        $this->container = $container;
         $this->Database = System::importStatic('Database');
+        $this->aliasKeys = $container->getParameter('mobile_de_alias_keys');
     }
 
     /**
@@ -47,15 +58,31 @@ class Ad
     public function generateAlias($varValue, DataContainer $dc)
     {
         $autoAlias = false;
+
+        $alias = $dc->activeRecord->name;
+
+        if ($this->aliasKeys){
+            $keys = explode(",", $this->aliasKeys);
+            $arrNewAlias = [];
+            foreach($keys as $key)
+            {
+                $arrNewAlias[] = $dc->activeRecord->{$key};
+            }
+
+            $alias = implode("-", $arrNewAlias);
+        }
+
         // Generate an alias if there is none
         if ('' === $varValue) {
             $autoAlias = true;
-            $varValue = standardize(StringUtil::restoreBasicEntities($dc->activeRecord->name));
+            $varValue = standardize(StringUtil::restoreBasicEntities($alias));
         }
+
         $objAlias = $this->Database->prepare('SELECT id FROM tl_mobile_ad WHERE (id=? OR alias=?)')
             ->execute($dc->id, $varValue);
+
         // Check whether the page alias exists
-        if ($objAlias->numRows > 1) {
+        if ($objAlias->numRows > 0) {
             if (!$autoAlias) {
                 throw new Exception(sprintf($GLOBALS['TL_LANG']['ERR']['aliasExists'], $varValue));
             }
@@ -76,18 +103,29 @@ class Ad
      *
      * @return string
      */
-    public function generateAliasByName($varValue)
+    public function generateAliasFromArr($arr)
     {
-        $varValue = standardize(StringUtil::restoreBasicEntities($varValue));
+        $alias = standardize(StringUtil::restoreBasicEntities($arr));
 
-        $objAlias = $this->Database->prepare('SELECT id FROM tl_mobile_ad WHERE alias=?')
-            ->execute($varValue);
-        // Check whether the page alias exists
-        if ($objAlias->numRows > 1) {
-            $varValue .= '-'.mt_rand();
+        if ($this->aliasKeys){
+            $keys = explode(",", $this->aliasKeys);
+            $arrNewAlias = [];
+            foreach($keys as $key)
+            {
+                $arrNewAlias[] = $arr[$key];
+            }
+
+            $alias = implode("-", $arrNewAlias);
         }
 
-        return $varValue;
+        $objAlias = $this->Database->prepare('SELECT id FROM tl_mobile_ad WHERE alias=?')
+            ->execute($alias);
+        // Check whether the page alias exists
+        if ($objAlias->numRows > 0) {
+            $alias .= '-'.mt_rand();
+        }
+
+        return $alias;
     }
 
     /**

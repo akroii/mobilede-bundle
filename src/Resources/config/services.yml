@@ -2,8 +2,6 @@ services:
   pdir.mobile_de.dca.ad:
     class: Pdir\MobileDeBundle\Dca\Ad
     arguments:
-      - "@contao.framework"
-      - "@security.token_storage"
-      - "@session"
-      - "doctrine.orm.entity_manager"
+      - "@service_container"
+    tags: ['controller.service_arguments']
     public: true
